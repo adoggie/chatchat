@@ -1,0 +1,1 @@
+scp -P 19015 main home.html bzz@bzz.wallizard.com:/home/bzz/elfunchat/

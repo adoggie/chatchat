@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+
+<!--https://csshint.com/html-css-chat-box-designs/-->
+
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<html lang="en">
+<head>
+<title>Chat Funnel</title>
+<script  src="https://cdnjs.cloudflare.com/ajax/libs/reconnecting-websocket/1.0.0/reconnecting-websocket.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/2.1.3/jquery.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.8.2/css/all.min.css">
+
+<script type="text/javascript">
+    function connect(){
+        conn = new ReconnectingWebSocket("ws://" + document.location.host + "/ws");
+        conn.debug = false;
+        conn.reconnectInterval= 2000 ;
+        return conn;
+    }
+    function onInputPaste(e){
+        var clipboardData, pastedData;
+        // Stop data actually being pasted into div
+        e.stopPropagation();
+        e.preventDefault();
+
+        // Get pasted data via clipboard API
+        clipboardData = e.clipboardData || window.clipboardData;
+        pastedData = clipboardData.getData('Text');
+        let data = pastedData.replace(/(?:\r\n|\r|\n)/g, '$_._$') ;
+        msg.value = data;
+    }
+
+window.onload = function () {
+    var conn = null;
+    var msg = document.getElementById("msg");
+    var log = document.getElementById("log");
+    var nick = document.getElementById("nick")
+    var session = document.getElementById("session")
+    var passwd = document.getElementById("passwd")
+    // msg.paste = onInputPaste;
+    msg.addEventListener('paste', onInputPaste);
+
+    function appendLog(item) {
+        var doScroll = log.scrollTop > log.scrollHeight - log.clientHeight - 1;
+        log.appendChild(item);
+        if (doScroll) {
+            log.scrollTop = log.scrollHeight - log.clientHeight;
+        }
+    }
+
+    function onRecvMessage(message){
+
+        message.text = message.text.replace(/&/g, '&amp;')
+            .replace(/>/g, '&gt;')
+            .replace(/</g, '&lt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&apos;')
+            .replace(/(?:\r\n|\r|\n)/g, '<br>')
+            .replace(/\$_\._\$/g,'<br>')
+
+        let text = `<article class="msg-container msg-remote" id="msg-0">
+            <div class="msg-box">
+
+                <i class='${message.icon.name}' style='${message.icon.style}'></i>
+                <div class="flr">
+                    <div class="messages">
+                        <p class="msg" id="msg-0">
+                            ${message.text}
+                        </p>
+                    </div>
+                    <span class="timestamp"><span class="username">${message.nick}</span>&bull;
+                    <span class="posttime">${message.time}</span></span>
+                </div>
+            </div>
+        </article>`;
+
+        if (message.self == true) {
+            // local message
+            text =`<article class="msg-container msg-self" id="msg-0">
+                    <div class="msg-box">
+                        <div class="flr">
+                            <div class="messages">
+                                <p class="msg" id="msg-1">
+                                    ${message.text}
+                                </p>
+                            </div>
+                            <span class="timestamp"><span class="username">${message.nick}</span>&bull;
+                            <span class="posttime">${message.time}</span></span>
+                        </div>
+                        <i class='${message.icon.name}' style='${message.icon.style}'></i>
+                    </div>
+                </article>
+            `;
+        }
+        $('#chat-window').append(text);
+        $('#chat-window').scrollTop($('#chat-window')[0].scrollHeight);
+        // componentHandler.upgradeDom();
+    }
+    // document.getElementById("form").onsubmit = function () {
+    document.getElementById("formex").onsubmit = function () {
+        // alert( msg.value.replace(/(?:\r\n|\r|\n)/g, '<br>') );
+
+        if (!conn) {
+            return false;
+        }
+        if (!msg.value) {
+            return false;
+        }
+        let m = {
+            nick: nick.value,
+            session: session.value,
+            passwd: passwd.value,
+            text: msg.value
+        }
+        conn.send( JSON.stringify(m));
+        msg.value = "";
+        return false;
+    };
+
+    if (window["WebSocket"]) {
+        conn = connect();
+
+        conn.onclose = function (evt) {
+            var item = document.createElement("div");
+            item.innerHTML = "<b>Connection closed.</b>";
+            appendLog(item);
+        };
+        conn.onmessage = function (evt) {
+                        // https://www.w3schools.com/jsref/prop_style_font.asp
+            // https://bobbyhadz.com/blog/javascript-create-element-with-style-attribute
+            let message = JSON.parse(evt.data);
+            onRecvMessage(message);
+        };
+        conn.onmessage_ = function (evt) {
+            // https://www.w3schools.com/jsref/prop_style_font.asp
+            // https://bobbyhadz.com/blog/javascript-create-element-with-style-attribute
+            let message = JSON.parse(evt.data);
+            var item = document.createElement("div");
+            item.innerHTML = message.time +  " ["+ message.nick + "] :" + message.text;
+            item.setAttribute(
+                'style',
+                'background-color: salmon; color: red; ',
+            );
+            item.style.color = message.style.color ;
+            item.style.backgroundColor = message.style.bgcolor;
+            item.style.font = message.style.font;
+            item.style.fontFamily = "\"Lucida Console\", \"Courier New\", monospace";
+            appendLog(item);
+
+        };
+    } else {
+        var item = document.createElement("div");
+        item.innerHTML = "<b>Your browser does not support WebSockets.</b>";
+        appendLog(item);
+    }
+
+    window.setInterval(function (){
+        let m = {
+            nick: '',
+            session: session.value,
+            passwd: passwd.value,
+            text: ''
+        }
+        try {
+            if( m.session==''){
+                return;
+            }
+            conn.send(JSON.stringify(m));
+        }catch (e){
+        }
+    },1000);
+};
+</script>
+<style type="text/css">
+    html,
+    body {
+        height: 100%;
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        font-family: sans-serif;
+        background: #1c1e22;
+    }
+    body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+    }
+    ::-webkit-scrollbar {
+        width: 4px;
+    }
+    ::-webkit-scrollbar-thumb {
+        background-color: #4c4c6a;
+        border-radius: 2px;
+    }
+    .chatbox {
+        margin:10px;
+        margin-left: 20px;
+        /*margin-right: 20px;*/
+        width: 100%;
+        height: 100%;
+        /*max-height: 400px;*/
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        box-shadow: 0 0 4px rgba(0,0,0,.14),0 4px 8px rgba(0,0,0,.28);
+    }
+    .chat-window {
+        flex: auto;
+        max-height: calc(100% - 60px);
+        background: #2f323b;
+        overflow: auto;
+    }
+    .chat-input {
+        flex: 0 0 auto;
+        height: 60px;
+        background: #40434e;
+        border-top: 1px solid #2671ff;
+        box-shadow: 0 0 4px rgba(0,0,0,.14),0 4px 8px rgba(0,0,0,.28);
+    }
+    .chat-input input {
+        height: 59px;
+        line-height: 60px;
+        outline: 0 none;
+        border: none;
+        width: calc(100% - 60px);
+        color: white;
+        text-indent: 10px;
+        font-size: 12pt;
+        padding: 0;
+        background: #40434e;
+    }
+    .chat-input button {
+        float: right;
+        outline: 0 none;
+        border: none;
+        background: rgba(255,255,255,.25);
+        height: 40px;
+        width: 40px;
+        border-radius: 50%;
+        padding: 2px 0 0 0;
+        margin: 10px;
+        transition: all 0.15s ease-in-out;
+    }
+    .chat-input input[good] + button {
+        box-shadow: 0 0 2px rgba(0,0,0,.12),0 2px 4px rgba(0,0,0,.24);
+        background: #2671ff;
+    }
+    .chat-input input[good] + button:hover {
+        box-shadow: 0 8px 17px 0 rgba(0,0,0,0.2),0 6px 20px 0 rgba(0,0,0,0.19);
+    }
+    .chat-input input[good] + button path {
+        fill: white;
+
+    }
+    .input-setting input {
+        float: left;
+        outline: 0 none;
+        border: none;
+        /*background: rgba(255,255,255,.25);*/
+        /*height: 40px;*/
+        width: 60px;
+        border-radius: 10%;
+        padding: 2px 0 0 0;
+        margin: 5px;
+        transition: all 0.15s ease-in-out;
+    }
+
+    .input-setting label {
+        float: left;
+        outline: 0 none;
+        color: aliceblue;
+    }
+
+    .msg-container {
+        position: relative;
+        display: inline-block;
+        width: 100%;
+        margin: 0 0 10px 0;
+        padding: 0;
+    }
+    .msg-box {
+        display: flex;
+        background: #5b5e6c;
+        padding: 10px 10px 0 10px;
+        border-radius: 0 6px 6px 0;
+        max-width: 80%;
+        width: auto;
+        float: left;
+        box-shadow: 0 0 2px rgba(0,0,0,.12),0 2px 4px rgba(0,0,0,.24);
+    }
+    .user-img {
+        display: inline-block;
+        border-radius: 50%;
+        height: 40px;
+        width: 40px;
+        background: #2671ff;
+        margin: 0 10px 10px 0;
+    }
+    .flr {
+        flex: 1 0 auto;
+        display: flex;
+        flex-direction: column;
+        width: calc(100% - 50px);
+    }
+    .messages {
+        flex: 1 0 auto;
+    }
+    .msg {
+        display: inline-block;
+        font-size: 11pt;
+        line-height: 13pt;
+        color: rgba(255,255,255,.7);
+        margin: 0 0 4px 0;
+    }
+    .msg:first-of-type {
+        margin-top: 8px;
+    }
+    .timestamp {
+        /*color: rgba(0,0,0,.38);*/
+        color: rgba(255,255,0,.38);
+        font-size: 8pt;
+        margin-bottom: 10px;
+    }
+    .username {
+        margin-right: 3px;
+    }
+    .posttime {
+        margin-left: 3px;
+    }
+    .msg-self .msg-box {
+        border-radius: 6px 0 0 6px;
+        background: #2671ff;
+        float: right;
+    }
+    .msg-self .user-img {
+        margin: 0 0 10px 10px;
+    }
+    .msg-self .msg {
+        /*text-align: right;*/
+        text-align: left;
+    }
+    .msg-self .timestamp {
+        text-align: right;
+    }
+
+#log {
+    background: white;
+    margin: 0;
+    padding: 0.5em 0.5em 0.5em 0.5em;
+    position: absolute;
+    top: 0.5em;
+    left: 0.5em;
+    right: 0.5em;
+    bottom: 3em;
+    overflow: auto;
+}
+
+#form {
+    padding: 0 0.5em 0 0.5em;
+    margin: 0;
+    position: absolute;
+    bottom: 1em;
+    left: 0px;
+    width: 100%;
+    overflow: hidden;
+}
+#form{
+    font-size: 16px;
+    font-style: normal;
+    /*font: */
+}
+
+</style>
+</head>
+
+<body>
+<section class="chatbox">
+    <section id="chat-window" class="chat-window">
+    </section>
+    <form class="chat-input" id="formex">
+        <input type="text" id="msg" autocomplete="off" placeholder="Type a message"  />
+        <button>
+            <svg style="width:24px;height:24px" viewBox="0 0 24 24"><path fill="rgba(0,0,0,.38)" d="M17,12L12,17V14H8V10H12V7L17,12M21,16.5C21,16.88 20.79,17.21 20.47,17.38L12.57,21.82C12.41,21.94 12.21,22 12,22C11.79,22 11.59,21.94 11.43,21.82L3.53,17.38C3.21,17.21 3,16.88 3,16.5V7.5C3,7.12 3.21,6.79 3.53,6.62L11.43,2.18C11.59,2.06 11.79,2 12,2C12.21,2 12.41,2.06 12.57,2.18L20.47,6.62C20.79,6.79 21,7.12 21,7.5V16.5M12,4.15L5,8.09V15.91L12,19.85L19,15.91V8.09L12,4.15Z" /></svg>
+        </button>
+    </form>
+    <div class="input-setting">
+            <label class="label" >nick</label><input type="text" id="nick"  value="Tom"/>
+            <label class="label">session</label><input type="text" id="session" width="80px" value=""/>
+            <label class="label">passwd</label><input type="password" id="passwd" width="30px"/>
+    </div>
+</section>
+</body>
+
+
+
+</html>
